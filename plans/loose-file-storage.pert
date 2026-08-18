@@ -149,6 +149,7 @@ task ACCEPT_STORAGE_SLICE ACCEPTANCE_INPUT_READY -> STORAGE_ACCEPTED:
   title "Accept the loose-file single-writer storage slice"
   description "Run formatting, lint, strict typecheck, unit and integration tests, build, package dry-run, installed-tarball smoke, full fsck fixtures, deterministic index rebuild, and PERT validation. Review the implementation against the llmthink decisions and resolved pending items, confirm no upper-layer concepts or CID-obscuring identity entered core, record remaining limitations without weakening failed gates, and stop before commit, push, publication, release selection, or plan advance unless separately authorized."
   duration 3p
+  status done
   priority 60
   requires:
     DEVELOPERS 1
@@ -417,3 +418,29 @@ milestone_acceptance_receipt RCPT_FINAL_INPUTS:
   evidence_revision none
   verifier codex
   occurred_at 2026-08-18T04:52:12Z
+
+work_event WEV_STORAGE_ACCEPTANCE_START:
+  model 1
+  task ACCEPT_STORAGE_SLICE
+  kind start
+  occurred_at 2026-08-18T13:54:30+09:00
+  planned_value 3p
+
+work_event WEV_STORAGE_ACCEPTANCE_FINISH:
+  model 1
+  task ACCEPT_STORAGE_SLICE
+  kind finish
+  occurred_at 2026-08-18T13:54:30+09:00
+
+milestone_acceptance_receipt RCPT_STORAGE_SLICE:
+  model 1
+  set STORAGE_ACCEPTED_R1
+  set_commitment sha256:3e63d6a574ee920088fa1e43dffe49855279053ddda809556f8d663e550f5730
+  criterion STORAGE_SLICE_VERIFIED
+  criterion_commitment sha256:7b1ea2062970aa222e431f82615a31068a570d7ac25684316a0d61c712da7b4e
+  action verify
+  evidence_kind command
+  evidence_reference "npm run check: 57 tests; build; npm pack dry-run; installed-tarball persistent reopen and fsck; llmthink audit; sealgraph fsck; perttool document check"
+  evidence_revision 7c7f475256f05dd5996893ad625002445a104688
+  verifier codex
+  occurred_at 2026-08-18T04:54:31Z
