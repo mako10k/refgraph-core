@@ -1,0 +1,209 @@
+project LOOSE_FILE_STORAGE:
+  version 6
+  title "Loose-file persistence and single-writer safety"
+  description "Implement the accepted local persistence direction for refgraph-core: CID-visible loose block files, atomic operational roots, a process-level single writer, and a disposable in-memory reverse index rebuilt from canonical blocks. Resolve platform and stale-lock recovery contracts before implementation. Preserve CID identity, codec neutrality, canonical forward-link truth, fail-closed unknown-codec handling, explicit two-phase GC, and immutable-versus-derived corruption reporting. Multi-writer transactions, SQLite, index persistence, CID confidentiality, network storage, publication, and upper-layer semantics are non-goals."
+  as_of 2026-08-18
+  duration_unit point
+  finish STORAGE_ACCEPTED
+  goal_owner user
+  dag_owner user
+
+resource DEVELOPERS:
+  title "Implementation capacity"
+  description "One writer owns overlapping filesystem, adapter, and RefGraph changes."
+  capacity 1
+
+resource REVIEWERS:
+  title "Architecture and acceptance review capacity"
+  capacity 1
+
+resource STORAGE_SURFACE:
+  title "Filesystem persistence and locking ownership"
+  capacity 1
+
+resource GRAPH_SURFACE:
+  title "RefGraph coordination and GC ownership"
+  capacity 1
+
+resource TEST_SURFACE:
+  title "Fault injection and acceptance fixture ownership"
+  capacity 1
+
+milestone STORAGE_SELECTED:
+  title "Loose-file and single-writer direction selected"
+  state reached
+
+milestone STORAGE_CONTRACT_ACCEPTED:
+  title "Filesystem and recovery contract accepted"
+
+milestone PROCESS_LOCK_READY:
+  title "Process-level writer lock ready"
+
+milestone BLOCK_STORE_READY:
+  title "Loose-file block store ready"
+
+milestone ROOT_STORE_READY:
+  title "Atomic file root store ready"
+
+milestone REPOSITORY_INPUT_READY:
+  title "Persistent repository composition inputs ready"
+
+milestone REPOSITORY_READY:
+  title "Persistent repository open and rebuild path ready"
+
+milestone INTEGRITY_ACCEPTED:
+  title "Filesystem corruption and crash behavior accepted"
+
+milestone GC_ACCEPTED:
+  title "Single-writer reachability and GC behavior accepted"
+
+milestone DOCUMENTATION_READY:
+  title "Persistence documentation and package surface ready"
+
+milestone ACCEPTANCE_INPUT_READY:
+  title "All persistence acceptance inputs ready"
+
+milestone STORAGE_ACCEPTED:
+  title "Loose-file persistence accepted"
+
+task FREEZE_STORAGE_CONTRACT STORAGE_SELECTED -> STORAGE_CONTRACT_ACCEPTED:
+  title "Freeze filesystem, lock, and recovery contracts"
+  description "Write the ADR and update architecture invariants before implementation. Fix the repository layout and canonical CID-to-shard mapping; CID visibility statement; supported platform matrix; file and directory permission expectations; same-filesystem atomicity assumptions; symlink and non-regular entry policy; temporary residue handling; root document version and corruption behavior; writer lifecycle; lock ownership metadata; fail-closed stale-lock detection; explicit recovery evidence and operation; error taxonomy; and shutdown semantics. Resolve audit pending items PD1 and PD2 without adding multi-writer or confidentiality semantics."
+  duration 3p
+  status done
+  priority 100
+  requires:
+    DEVELOPERS 1
+    REVIEWERS 1
+    STORAGE_SURFACE 1
+    GRAPH_SURFACE 1
+
+task IMPLEMENT_PROCESS_LOCK STORAGE_CONTRACT_ACCEPTED -> PROCESS_LOCK_READY:
+  title "Implement the fail-closed process writer lock"
+  description "Implement the accepted repository-scoped exclusive writer lifecycle and ownership metadata. Reject a second writer deterministically, retain actionable stale-lock diagnostics without automatic split-brain recovery, release only the lock instance actually owned, clean up on orderly close, and test same-process and child-process contention plus stale and malformed lock records. Do not treat PID presence alone as proof that destructive recovery is safe."
+  duration 4p
+  priority 95
+  requires:
+    DEVELOPERS 1
+    STORAGE_SURFACE 1
+    TEST_SURFACE 1
+
+task IMPLEMENT_LOOSE_BLOCK_STORE STORAGE_CONTRACT_ACCEPTED -> BLOCK_STORE_READY:
+  title "Implement immutable loose-file block storage"
+  description "Add LooseFileBlockStore behind the existing BlockStore contract. Derive validated shard paths only from canonical CID strings; write temporary files inside the repository filesystem; verify bytes and CID before publication; fsync according to the accepted durability contract; make same-CID same-bytes puts idempotent; reject different bytes; copy bytes at API boundaries; iterate deterministically; and classify malformed names, symlinks, non-regular files, temporary residue, missing files, and I/O failures without inventing blocks or rewriting corruption."
+  duration 5p
+  status done
+  priority 90
+  requires:
+    DEVELOPERS 1
+    STORAGE_SURFACE 1
+    TEST_SURFACE 1
+
+task IMPLEMENT_ATOMIC_ROOT_STORE STORAGE_CONTRACT_ACCEPTED -> ROOT_STORE_READY:
+  title "Implement atomic operational root persistence"
+  description "Add AtomicFileRootStore behind RootStore. Persist only the versioned deterministic CID set, validate every CID and reject duplicate or malformed state, perform temporary write plus file fsync plus atomic rename plus directory fsync under the accepted platform contract, preserve the last valid document across injected failures, and fail closed on missing-versus-corrupt state according to the ADR. Never silently replace corruption with an empty root set."
+  duration 4p
+  priority 90
+  requires:
+    DEVELOPERS 1
+    STORAGE_SURFACE 1
+    TEST_SURFACE 1
+
+gate LOCK_COMPOSITION_INPUT PROCESS_LOCK_READY -> REPOSITORY_INPUT_READY:
+  reason "Repository mutation requires the accepted exclusive writer lock"
+
+gate BLOCK_COMPOSITION_INPUT BLOCK_STORE_READY -> REPOSITORY_INPUT_READY:
+  reason "Repository composition requires immutable loose block storage"
+
+gate ROOT_COMPOSITION_INPUT ROOT_STORE_READY -> REPOSITORY_INPUT_READY:
+  reason "Repository composition requires atomic operational roots"
+
+task COMPOSE_PERSISTENT_REPOSITORY REPOSITORY_INPUT_READY -> REPOSITORY_READY:
+  title "Compose persistent open, rebuild, and close lifecycle"
+  description "Expose the smallest coherent local repository construction path without replacing neutral storage interfaces. Acquire the writer lock before mutation readiness, open block and root adapters, rebuild the in-memory reverse index from canonical blocks, reject write-ready open on immutable corruption or unsupported codec, preserve read-only verification evidence, and close resources in a deterministic order. Ensure RefGraph instance serialization and process lock ownership have one documented responsibility boundary."
+  duration 4p
+  priority 85
+  requires:
+    DEVELOPERS 1
+    STORAGE_SURFACE 1
+    GRAPH_SURFACE 1
+
+task ACCEPT_FILESYSTEM_INTEGRITY REPOSITORY_READY -> INTEGRITY_ACCEPTED:
+  title "Accept restart, corruption, and crash behavior"
+  description "Add isolated-filesystem integration and fault-injection tests for restart identity, deterministic iteration and index rebuild, interrupted block and root writes, temporary residue, malformed CID paths, symlink and non-regular entries, permission errors, truncated and invalid root documents, immutable block corruption, orderly close, stale lock diagnostics, and explicit recovery boundaries. Prove fsck distinguishes immutable damage from repairable derived state and performs no silent rewrite."
+  duration 5p
+  priority 80
+  requires:
+    DEVELOPERS 1
+    REVIEWERS 1
+    STORAGE_SURFACE 1
+    TEST_SURFACE 1
+
+task ACCEPT_SINGLE_WRITER_GC REPOSITORY_READY -> GC_ACCEPTED:
+  title "Accept locked reachability and destructive GC"
+  description "Exercise root mutation, canonical reachability, planGc, and commitGc through the persistent repository. Prove a second writer cannot change roots or blocks; commit recomputes under the held lock; stale plans are rejected; unknown codecs and immutable corruption expose no candidates; reachable blocks survive; partial deletion after an injected crash remains safe; restart rebuild removes derived index damage; and dry-run candidate inspection remains separate from deletion."
+  duration 4p
+  priority 80
+  requires:
+    DEVELOPERS 1
+    REVIEWERS 1
+    STORAGE_SURFACE 1
+    GRAPH_SURFACE 1
+    TEST_SURFACE 1
+
+task DOCUMENT_PERSISTENT_ADAPTER REPOSITORY_READY -> DOCUMENTATION_READY:
+  title "Document and package the local persistence adapter"
+  description "Update README, architecture, AGENTS guardrails, exports, and examples with repository layout, CID visibility, permissions, supported platforms, writer lifecycle, lock contention and stale recovery, root durability, index rebuild cost, GC crash guarantees, adapter error behavior, and non-goals. Add CI package smoke coverage using an isolated temporary repository without publishing or changing release state."
+  duration 3p
+  priority 70
+  requires:
+    DEVELOPERS 1
+    REVIEWERS 1
+    STORAGE_SURFACE 1
+
+gate INTEGRITY_FINAL_INPUT INTEGRITY_ACCEPTED -> ACCEPTANCE_INPUT_READY:
+  reason "Final acceptance requires filesystem and crash-safety evidence"
+
+gate GC_FINAL_INPUT GC_ACCEPTED -> ACCEPTANCE_INPUT_READY:
+  reason "Final acceptance requires locked GC safety evidence"
+
+gate DOCUMENTATION_FINAL_INPUT DOCUMENTATION_READY -> ACCEPTANCE_INPUT_READY:
+  reason "Final acceptance requires the documented and packaged adapter boundary"
+
+task ACCEPT_STORAGE_SLICE ACCEPTANCE_INPUT_READY -> STORAGE_ACCEPTED:
+  title "Accept the loose-file single-writer storage slice"
+  description "Run formatting, lint, strict typecheck, unit and integration tests, build, package dry-run, installed-tarball smoke, full fsck fixtures, deterministic index rebuild, and PERT validation. Review the implementation against the llmthink decisions and resolved pending items, confirm no upper-layer concepts or CID-obscuring identity entered core, record remaining limitations without weakening failed gates, and stop before commit, push, publication, release selection, or plan advance unless separately authorized."
+  duration 3p
+  priority 60
+  requires:
+    DEVELOPERS 1
+    REVIEWERS 1
+    STORAGE_SURFACE 1
+    GRAPH_SURFACE 1
+    TEST_SURFACE 1
+
+work_event WEV_FREEZE_STORAGE_START:
+  model 1
+  task FREEZE_STORAGE_CONTRACT
+  kind start
+  occurred_at 2026-08-18T12:45:00+09:00
+  planned_value 3p
+
+work_event WEV_FREEZE_STORAGE_FINISH:
+  model 1
+  task FREEZE_STORAGE_CONTRACT
+  kind finish
+  occurred_at 2026-08-18T12:51:13+09:00
+
+work_event WEV_LOOSE_BLOCK_START:
+  model 1
+  task IMPLEMENT_LOOSE_BLOCK_STORE
+  kind start
+  occurred_at 2026-08-18T12:57:24+09:00
+  planned_value 5p
+
+work_event WEV_LOOSE_BLOCK_FINISH:
+  model 1
+  task IMPLEMENT_LOOSE_BLOCK_STORE
+  kind finish
+  occurred_at 2026-08-18T13:03:21+09:00

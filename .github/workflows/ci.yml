@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm pack --dry-run
+      - name: Package smoke test
+        run: |
+          PACKAGE=$(npm pack --silent)
+          mkdir smoke
+          cd smoke
+          npm init -y >/dev/null
+          npm install "../$PACKAGE" >/dev/null
+          node -e "import('@mako10k/refgraph-core').then(m => { if (!m.RefGraph) process.exit(1) })"

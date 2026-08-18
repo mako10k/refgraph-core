@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# SealGraph runtime state is local and non-canonical. Canonical config, objects, and REF manifests
+# remain visible to Git.
+.sealgraph/index/
+.sealgraph/cache/
+.sealgraph/locks/
+.sealgraph/logs/

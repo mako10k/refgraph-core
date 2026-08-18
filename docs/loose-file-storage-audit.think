@@ -1,0 +1,95 @@
+framework StorageDecisionAudit:
+  requires problem
+  requires premise and evidence
+  requires decision
+  warns pending
+
+domain RefGraphCoreStorage:
+  description "refgraph-core の domain-neutral な local persistence と single-writer 安全性"
+
+problem P1:
+  "loose-file 永続化を追加しても CID identity、canonical forward links、安全な GC、派生状態の修復可能性を壊さないか"
+
+step S1:
+  evidence EV1:
+    "BlockStore は put/get/has/delete/iterate だけを持ち、現在の MemoryBlockStore は永続化もプロセス間排他も提供しない"
+    resource:
+      file "src/types.ts"
+      mime "text/plain"
+      label "storage interfaces"
+    resource:
+      file "src/memory.ts"
+      mime "text/plain"
+      label "in-memory adapters"
+
+step S2:
+  evidence EV2:
+    "RefGraph の exclusive は同一インスタンスの mutation だけを直列化し、別プロセスや backend 直接変更を防止しない"
+    resource:
+      file "src/ref-graph.ts"
+      mime "text/plain"
+      label "RefGraph coordination and GC"
+
+step S3:
+  evidence EV3:
+    "GC plan は canonical block scan 後に roots と stored CID 集合を fingerprint し、commit 時に再計算するが、その再計算と削除を外部 writer から隔離する backend 契約はまだない"
+    resource:
+      file "src/ref-graph.ts"
+      mime "text/plain"
+      label "GC plan and commit"
+
+step S4:
+  evidence EV4:
+    "architecture は immutable blocks、operational roots、disposable reverse index、unknown codec fail-closed を既存不変条件としている"
+    resource:
+      file "docs/architecture.md"
+      mime "text/markdown"
+      label "current architecture"
+
+step S5:
+  premise PR1:
+    "CID の秘匿性は refgraph-core の保証ではなく、repository directory の ACL、暗号化 filesystem、backup 管理など storage visibility の責任とする"
+
+step S6:
+  premise PR2:
+    "single-writer 保証は、同じ repository を変更する全 conforming writer が同一の process lock を取得し、adapter 外から block や roots を変更しない場合に成立する"
+
+step S7:
+  decision D1 based_on P1, EV1, EV4, PR1:
+    "LooseFileBlockStore は canonical CID string から決定的に shard path を導出し、block bytes 以外を block file に格納しない。CID が path から可視であることを明示的制約とする"
+
+step S8:
+  decision D2 based_on P1, EV1, PR2:
+    "block write は repository 内の同一 filesystem 上に temporary file を作り、bytes と CID を検証し、file fsync 後に公開する。同一 CID の既存 file は bytes 一致なら idempotent success、不一致なら immutable corruption として拒否する"
+
+step S9:
+  decision D3 based_on P1, EV4, PR2:
+    "AtomicFileRootStore は CID の集合だけを versioned document として保持し、temporary write、file fsync、atomic rename、directory fsync の順で更新する。破損した root document は空集合として扱わず fail closed で報告する"
+
+step S10:
+  decision D4 based_on P1, EV2, EV3, PR2:
+    "local repository writer は process-level lock を保持する。put、root mutation、index rebuild、GC commit は lock 保持中だけ許可し、GC commit は lock 内で canonical scan と plan 再検証を行ってから candidate を削除する"
+
+step S11:
+  decision D5 based_on P1, EV3, EV4:
+    "reverse index は初期版では永続化せず memory state とし、repository open 時に canonical blocks から再構築する。再構築失敗時は write-ready とせず immutable corruption または unsupported codec を返す"
+
+step S12:
+  decision D6 based_on P1, EV1, PR2:
+    "path traversal、symlink、non-regular file、malformed CID filename、temporary residue を通常 block とみなさない。検出結果を分類し、canonical block の自動書換えや推測修復は行わない"
+
+step S13:
+  decision D7 based_on P1, EV2, EV3, EV4:
+    "受入試験は再起動後の identity、同時 writer 拒否、atomic root 更新、途中失敗、stale GC plan、GC 中の root 変更拒否、index deterministic rebuild、symlink と malformed entry、immutable corruption の非修復を含む"
+
+step S14:
+  decision D9 based_on P1, EV1, EV4:
+    "初期 filesystem adapter の保証対象は atomic link、rename、mkdir と file、directory fsync を提供する Linux local filesystem に限定する。network filesystem、Windows、macOS は同一保証を主張せず、必要な primitive を確認できない場合は mutation readiness 前に fail closed とする"
+
+step S15:
+  decision D10 based_on P1, EV2, EV3, PR2:
+    "crash 後に残る writer lock は read-only inspection だけを library API とし、自動解除 API を提供しない。全 writer を停止した証拠を確認後、operator が lock を quarantine へ atomic rename し、read-only fsck 後に新 writer を開く"
+
+step S16:
+  decision D8 based_on P1, D1, D2, D3, D4, D5, D6, D7, D9, D10:
+    "loose-file backend は core interfaces の adapter として追加し、CID、codec、graph semantics、RefGraph public behavior を backend 固有仕様へ変更しない"
