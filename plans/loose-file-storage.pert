@@ -73,6 +73,7 @@ task IMPLEMENT_ATOMIC_ROOT_STORE STORAGE_CONTRACT_ACCEPTED -> ROOT_STORE_READY:
   title "Implement atomic operational root persistence"
   description "Add AtomicFileRootStore behind RootStore. Persist only the versioned deterministic CID set, validate every CID and reject duplicate or malformed state, perform temporary write plus file fsync plus atomic rename plus directory fsync under the accepted platform contract, preserve the last valid document across injected failures, and fail closed on missing-versus-corrupt state according to the ADR. Never silently replace corruption with an empty root set."
   duration 4p
+  status done
   priority 90
   requires:
     DEVELOPERS 1
@@ -256,3 +257,29 @@ milestone_acceptance_receipt RCPT_BLOCK_STORE:
   evidence_revision 20787211f33482a7098d142054c006e43a97aefb
   verifier codex
   occurred_at 2026-08-18T04:19:09Z
+
+work_event WEV_ATOMIC_ROOT_START:
+  model 1
+  task IMPLEMENT_ATOMIC_ROOT_STORE
+  kind start
+  occurred_at 2026-08-18T13:37:07+09:00
+  planned_value 4p
+
+work_event WEV_ATOMIC_ROOT_FINISH:
+  model 1
+  task IMPLEMENT_ATOMIC_ROOT_STORE
+  kind finish
+  occurred_at 2026-08-18T13:37:07+09:00
+
+milestone_acceptance_receipt RCPT_ROOT_STORE:
+  model 1
+  set ROOT_STORE_READY_R1
+  set_commitment sha256:204ec475f8784373cb0a09cf3d1dc4bfd932ff5553c5f90d9463e287cb6403e7
+  criterion ROOT_STORE_VERIFIED
+  criterion_commitment sha256:88fa02c31bedeaab36c7c0d238a512ae6e9655a1e2c5c5c052c2cb5fb161c37a
+  action verify
+  evidence_kind test
+  evidence_reference "npm run check: atomic-file-root-store 11 tests passed; full suite 39 tests passed"
+  evidence_revision none
+  verifier codex
+  occurred_at 2026-08-18T04:37:07Z

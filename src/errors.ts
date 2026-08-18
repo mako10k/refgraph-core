@@ -66,6 +66,17 @@ export class StorageIoError extends RefGraphError {
   }
 }
 
+export class RootStateCorruptionError extends RefGraphError {
+  override readonly name = 'RootStateCorruptionError'
+
+  constructor(
+    readonly reason: string,
+    options?: ErrorOptions,
+  ) {
+    super(`roots.v1.json is corrupt: ${reason}`, options)
+  }
+}
+
 export class WriterLockContendedError extends RefGraphError {
   override readonly name = 'WriterLockContendedError'
 
