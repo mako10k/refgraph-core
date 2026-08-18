@@ -41,10 +41,18 @@ export class AtomicFileRootStore implements RootStore {
     repositoryPath: string,
     randomId: () => string = randomUUID,
   ): Promise<AtomicFileRootStore> {
+    const store = await AtomicFileRootStore.connect(repositoryPath, randomId)
+    await store.list()
+    return store
+  }
+
+  static async connect(
+    repositoryPath: string,
+    randomId: () => string = randomUUID,
+  ): Promise<AtomicFileRootStore> {
     assertSupportedPlatform()
     const store = new AtomicFileRootStore(repositoryPath, randomId)
     await requireDirectory(store.repositoryPath)
-    await store.list()
     return store
   }
 

@@ -100,3 +100,19 @@ export class WriterLockOwnershipError extends RefGraphError {
     super('writer.lock is no longer the exact lock owned by this process; refusing to remove it')
   }
 }
+
+export class ReadOnlyRepositoryError extends RefGraphError {
+  override readonly name = 'ReadOnlyRepositoryError'
+
+  constructor() {
+    super('repository is read-only')
+  }
+}
+
+export class ClosedRepositoryError extends RefGraphError {
+  override readonly name = 'ClosedRepositoryError'
+
+  constructor() {
+    super('repository is closed')
+  }
+}

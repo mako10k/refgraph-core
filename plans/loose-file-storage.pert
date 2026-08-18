@@ -93,6 +93,7 @@ task COMPOSE_PERSISTENT_REPOSITORY REPOSITORY_INPUT_READY -> REPOSITORY_READY:
   title "Compose persistent open, rebuild, and close lifecycle"
   description "Expose the smallest coherent local repository construction path without replacing neutral storage interfaces. Acquire the writer lock before mutation readiness, open block and root adapters, rebuild the in-memory reverse index from canonical blocks, reject write-ready open on immutable corruption or unsupported codec, preserve read-only verification evidence, and close resources in a deterministic order. Ensure RefGraph instance serialization and process lock ownership have one documented responsibility boundary."
   duration 4p
+  status done
   priority 85
   requires:
     DEVELOPERS 1
@@ -283,3 +284,42 @@ milestone_acceptance_receipt RCPT_ROOT_STORE:
   evidence_revision none
   verifier codex
   occurred_at 2026-08-18T04:37:07Z
+
+milestone_acceptance_receipt RCPT_REPOSITORY_INPUTS:
+  model 1
+  set REPOSITORY_INPUT_READY_R1
+  set_commitment sha256:7b1192d570cadd9f2a07a54e351bc098628594bdd5abd1a814f82ef2b7116eeb
+  criterion COMPOSITION_INPUTS_READY
+  criterion_commitment sha256:0fdf28174f8daf8a898fc25b34c0ae80de7a7de7b93097500b13cc14c66c56a6
+  action verify
+  evidence_kind artifact
+  evidence_reference "Committed ProcessWriterLock, LooseFileBlockStore, and AtomicFileRootStore adapters"
+  evidence_revision 2f99e365e6cfd32a2108a27e0eb85bf0da6d2262
+  verifier codex
+  occurred_at 2026-08-18T04:44:26Z
+
+work_event WEV_REPOSITORY_COMPOSE_START:
+  model 1
+  task COMPOSE_PERSISTENT_REPOSITORY
+  kind start
+  occurred_at 2026-08-18T13:44:27+09:00
+  planned_value 4p
+
+work_event WEV_REPOSITORY_COMPOSE_FINISH:
+  model 1
+  task COMPOSE_PERSISTENT_REPOSITORY
+  kind finish
+  occurred_at 2026-08-18T13:44:27+09:00
+
+milestone_acceptance_receipt RCPT_REPOSITORY_LIFECYCLE:
+  model 1
+  set REPOSITORY_READY_R1
+  set_commitment sha256:bb99acd5281be0d80e8d54cfc388bc1c6a8ac17a7fbd91643eff6ccf2f017ccc
+  criterion REPOSITORY_LIFECYCLE_VERIFIED
+  criterion_commitment sha256:8aaadb12c5393f1d204a36f887fbabfd1a288bc1ff67c5ce0e7d924d43fecf19
+  action verify
+  evidence_kind test
+  evidence_reference "npm run check: LocalRepository 7 tests passed; full suite 46 tests passed; npm pack dry-run succeeded"
+  evidence_revision none
+  verifier codex
+  occurred_at 2026-08-18T04:44:27Z

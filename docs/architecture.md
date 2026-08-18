@@ -61,6 +61,20 @@ For the persistent adapter, the canonical rescan and deletion occur while one re
 writer lock is held. A crash may delete only a subset of garbage, but must never expose a path that
 permits another conforming writer to change roots during that operation.
 
+## Local repository lifecycle
+
+`LocalRepository` is the public composition boundary for the first persistent adapter. Writer
+creation or open acquires the repository process lock before exposing block or root mutation,
+opens the loose-block and atomic-root adapters, and rebuilds the disposable reverse index from
+canonical blocks. Any immutable corruption or unsupported codec aborts writer open and releases
+the acquired lock. Read-only open takes no lock, denies all canonical mutation with a stable error,
+and retains root-validation or index-rebuild failures in `openingErrors` so inspection can continue.
+
+The composed repository delegates the neutral `RefGraph` API without exposing its mutable storage
+adapters. Mutations and close share one queue; orderly close runs after earlier accepted mutations,
+releases only the owned writer lock, and rejects later operations. The memory-only `RefGraph`
+constructor remains supported and unchanged, so adding local persistence is backward-compatible.
+
 ## First persistent adapter
 
 The accepted first persistence direction is a Linux local-filesystem loose block store, an
