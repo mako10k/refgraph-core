@@ -7,7 +7,11 @@ import * as raw from 'multiformats/codecs/raw'
 import { sha256 } from 'multiformats/hashes/sha2'
 import { MemoryBlockStore, RefGraph } from '../src/index.js'
 import { AtomicFileRootStore } from '../src/atomic-file-root-store.js'
-import { RootStateCorruptionError, UnsafeFilesystemEntryError } from '../src/errors.js'
+import {
+  RootStateCorruptionError,
+  StorageIoError,
+  UnsafeFilesystemEntryError,
+} from '../src/errors.js'
 
 const temporaryRoots: string[] = []
 
@@ -111,17 +115,21 @@ describe('AtomicFileRootStore', () => {
     expect(await readFile(outside, 'utf8')).toBe('{"version":1,"roots":[]}\n')
   })
 
-  it('leaves the last valid document visible when publication fails before rename', async () => {
+  it('leaves the last valid document visible when publication fails after file sync', async () => {
     const repository = await temporaryRepository()
     const original = await cid(Uint8Array.of(1))
     const next = await cid(Uint8Array.of(2))
-    const store = await AtomicFileRootStore.open(repository, () => 'blocked')
+    let failBeforeRename = false
+    const store = await AtomicFileRootStore.open(repository, undefined, () => {
+      if (failBeforeRename) throw new Error('injected failure before rename')
+    })
     await store.add(original)
     const before = await readFile(join(repository, 'roots.v1.json'))
 
-    await mkdir(join(repository, '.roots.blocked.tmp'))
-    await expect(store.add(next)).rejects.toThrow()
+    failBeforeRename = true
+    await expect(store.add(next)).rejects.toBeInstanceOf(StorageIoError)
     expect(await readFile(join(repository, 'roots.v1.json'))).toEqual(before)
+    expect((await store.list()).map(String)).toEqual([original.toString()])
   })
 })
 

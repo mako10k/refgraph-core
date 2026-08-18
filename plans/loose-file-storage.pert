@@ -104,6 +104,7 @@ task ACCEPT_FILESYSTEM_INTEGRITY REPOSITORY_READY -> INTEGRITY_ACCEPTED:
   title "Accept restart, corruption, and crash behavior"
   description "Add isolated-filesystem integration and fault-injection tests for restart identity, deterministic iteration and index rebuild, interrupted block and root writes, temporary residue, malformed CID paths, symlink and non-regular entries, permission errors, truncated and invalid root documents, immutable block corruption, orderly close, stale lock diagnostics, and explicit recovery boundaries. Prove fsck distinguishes immutable damage from repairable derived state and performs no silent rewrite."
   duration 5p
+  status done
   priority 80
   requires:
     DEVELOPERS 1
@@ -323,3 +324,29 @@ milestone_acceptance_receipt RCPT_REPOSITORY_LIFECYCLE:
   evidence_revision none
   verifier codex
   occurred_at 2026-08-18T04:44:27Z
+
+work_event WEV_FILESYSTEM_INTEGRITY_START:
+  model 1
+  task ACCEPT_FILESYSTEM_INTEGRITY
+  kind start
+  occurred_at 2026-08-18T13:46:45+09:00
+  planned_value 5p
+
+work_event WEV_FILESYSTEM_INTEGRITY_FINISH:
+  model 1
+  task ACCEPT_FILESYSTEM_INTEGRITY
+  kind finish
+  occurred_at 2026-08-18T13:46:46+09:00
+
+milestone_acceptance_receipt RCPT_FILESYSTEM_INTEGRITY:
+  model 1
+  set INTEGRITY_ACCEPTED_R1
+  set_commitment sha256:6ade1c44b62d180d7af235602edd0a8494b2bed2c65daee14495c2fab58e715d
+  criterion FILESYSTEM_INTEGRITY_VERIFIED
+  criterion_commitment sha256:f979e7d5d04cd71037f962800ed401b7c84cebb5a4945ee5245e0ef95a8e9975
+  action verify
+  evidence_kind test
+  evidence_reference "npm run check: 51 tests passed including persistent filesystem integrity and injected pre-rename failure; llmthink audit and sealgraph fsck passed"
+  evidence_revision none
+  verifier codex
+  occurred_at 2026-08-18T04:46:46Z

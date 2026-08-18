@@ -30,18 +30,25 @@ export class AtomicFileRootStore implements RootStore {
   readonly repositoryPath: string
   readonly rootsPath: string
   private readonly randomId: () => string
+  private readonly beforeRename: (() => void | Promise<void>) | undefined
 
-  private constructor(repositoryPath: string, randomId: () => string) {
+  private constructor(
+    repositoryPath: string,
+    randomId: () => string,
+    beforeRename: (() => void | Promise<void>) | undefined,
+  ) {
     this.repositoryPath = resolve(repositoryPath)
     this.rootsPath = join(this.repositoryPath, ROOTS_FILENAME)
     this.randomId = randomId
+    this.beforeRename = beforeRename
   }
 
   static async open(
     repositoryPath: string,
     randomId: () => string = randomUUID,
+    beforeRename?: () => void | Promise<void>,
   ): Promise<AtomicFileRootStore> {
-    const store = await AtomicFileRootStore.connect(repositoryPath, randomId)
+    const store = await AtomicFileRootStore.connect(repositoryPath, randomId, beforeRename)
     await store.list()
     return store
   }
@@ -49,9 +56,10 @@ export class AtomicFileRootStore implements RootStore {
   static async connect(
     repositoryPath: string,
     randomId: () => string = randomUUID,
+    beforeRename?: () => void | Promise<void>,
   ): Promise<AtomicFileRootStore> {
     assertSupportedPlatform()
-    const store = new AtomicFileRootStore(repositoryPath, randomId)
+    const store = new AtomicFileRootStore(repositoryPath, randomId, beforeRename)
     await requireDirectory(store.repositoryPath)
     return store
   }
@@ -102,6 +110,7 @@ export class AtomicFileRootStore implements RootStore {
       await handle.sync()
       await handle.close()
       handle = undefined
+      await this.beforeRename?.()
       await rename(temporaryPath, this.rootsPath)
       await syncDirectory(this.repositoryPath)
     } catch (error) {
