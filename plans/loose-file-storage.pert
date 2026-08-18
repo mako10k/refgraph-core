@@ -82,6 +82,7 @@ task IMPLEMENT_PROCESS_LOCK STORAGE_CONTRACT_ACCEPTED -> PROCESS_LOCK_READY:
   title "Implement the fail-closed process writer lock"
   description "Implement the accepted repository-scoped exclusive writer lifecycle and ownership metadata. Reject a second writer deterministically, retain actionable stale-lock diagnostics without automatic split-brain recovery, release only the lock instance actually owned, clean up on orderly close, and test same-process and child-process contention plus stale and malformed lock records. Do not treat PID presence alone as proof that destructive recovery is safe."
   duration 4p
+  status done
   priority 95
   requires:
     DEVELOPERS 1
@@ -207,3 +208,16 @@ work_event WEV_LOOSE_BLOCK_FINISH:
   task IMPLEMENT_LOOSE_BLOCK_STORE
   kind finish
   occurred_at 2026-08-18T13:03:21+09:00
+
+work_event WEV_PROCESS_LOCK_START:
+  model 1
+  task IMPLEMENT_PROCESS_LOCK
+  kind start
+  occurred_at 2026-08-18T13:05:57+09:00
+  planned_value 4p
+
+work_event WEV_PROCESS_LOCK_FINISH:
+  model 1
+  task IMPLEMENT_PROCESS_LOCK
+  kind finish
+  occurred_at 2026-08-18T13:11:19+09:00

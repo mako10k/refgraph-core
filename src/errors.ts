@@ -65,3 +65,27 @@ export class StorageIoError extends RefGraphError {
     super(`loose-file storage I/O failed during ${operation}`, options)
   }
 }
+
+export class WriterLockContendedError extends RefGraphError {
+  override readonly name = 'WriterLockContendedError'
+
+  constructor(readonly owner: unknown) {
+    super('repository already has a process writer; inspect writer.lock without removing it')
+  }
+}
+
+export class MalformedWriterLockError extends RefGraphError {
+  override readonly name = 'MalformedWriterLockError'
+
+  constructor(readonly reason: string) {
+    super(`writer.lock is malformed or incomplete: ${reason}`)
+  }
+}
+
+export class WriterLockOwnershipError extends RefGraphError {
+  override readonly name = 'WriterLockOwnershipError'
+
+  constructor() {
+    super('writer.lock is no longer the exact lock owned by this process; refusing to remove it')
+  }
+}
