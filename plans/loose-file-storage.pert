@@ -116,6 +116,7 @@ task ACCEPT_SINGLE_WRITER_GC REPOSITORY_READY -> GC_ACCEPTED:
   title "Accept locked reachability and destructive GC"
   description "Exercise root mutation, canonical reachability, planGc, and commitGc through the persistent repository. Prove a second writer cannot change roots or blocks; commit recomputes under the held lock; stale plans are rejected; unknown codecs and immutable corruption expose no candidates; reachable blocks survive; partial deletion after an injected crash remains safe; restart rebuild removes derived index damage; and dry-run candidate inspection remains separate from deletion."
   duration 4p
+  status done
   priority 80
   requires:
     DEVELOPERS 1
@@ -128,6 +129,7 @@ task DOCUMENT_PERSISTENT_ADAPTER REPOSITORY_READY -> DOCUMENTATION_READY:
   title "Document and package the local persistence adapter"
   description "Update README, architecture, AGENTS guardrails, exports, and examples with repository layout, CID visibility, permissions, supported platforms, writer lifecycle, lock contention and stale recovery, root durability, index rebuild cost, GC crash guarantees, adapter error behavior, and non-goals. Add CI package smoke coverage using an isolated temporary repository without publishing or changing release state."
   duration 3p
+  status done
   priority 70
   requires:
     DEVELOPERS 1
@@ -350,3 +352,68 @@ milestone_acceptance_receipt RCPT_FILESYSTEM_INTEGRITY:
   evidence_revision none
   verifier codex
   occurred_at 2026-08-18T04:46:46Z
+
+work_event WEV_SINGLE_WRITER_GC_START:
+  model 1
+  task ACCEPT_SINGLE_WRITER_GC
+  kind start
+  occurred_at 2026-08-18T13:49:33+09:00
+  planned_value 4p
+
+work_event WEV_SINGLE_WRITER_GC_FINISH:
+  model 1
+  task ACCEPT_SINGLE_WRITER_GC
+  kind finish
+  occurred_at 2026-08-18T13:49:33+09:00
+
+milestone_acceptance_receipt RCPT_LOCKED_GC:
+  model 1
+  set GC_ACCEPTED_R1
+  set_commitment sha256:899d6f19c58adcf0187727b031dd08fb0632c35f0df30497ca353f0d01f89391
+  criterion LOCKED_GC_VERIFIED
+  criterion_commitment sha256:7a047f76b79df0fc02a2a6241b6baab679a8c2e8bb05391661a8b57e12c62f63
+  action verify
+  evidence_kind test
+  evidence_reference "npm run check: 57 tests passed including 6 persistent single-writer GC acceptance tests; llmthink audit and sealgraph fsck passed"
+  evidence_revision none
+  verifier codex
+  occurred_at 2026-08-18T04:49:33Z
+
+work_event WEV_DOCUMENT_ADAPTER_START:
+  model 1
+  task DOCUMENT_PERSISTENT_ADAPTER
+  kind start
+  occurred_at 2026-08-18T13:51:46+09:00
+  planned_value 3p
+
+work_event WEV_DOCUMENT_ADAPTER_FINISH:
+  model 1
+  task DOCUMENT_PERSISTENT_ADAPTER
+  kind finish
+  occurred_at 2026-08-18T13:51:48+09:00
+
+milestone_acceptance_receipt RCPT_PACKAGE_DOCUMENTATION:
+  model 1
+  set DOCUMENTATION_READY_R1
+  set_commitment sha256:69de7e7386bd7e61a89ead9e5168b8ae6e544f65ad925bf0a24cf0574a931203
+  criterion PACKAGE_BOUNDARY_DOCUMENTED
+  criterion_commitment sha256:e3ac1c3f6aadeb536bc1ef10b7a3cd731992c046aeb3cccd4aa90c6e4ba441c9
+  action verify
+  evidence_kind artifact
+  evidence_reference "README local persistence contract, architecture lifecycle, contributor guardrails, persistent example, and installed-tarball LocalRepository smoke"
+  evidence_revision none
+  verifier codex
+  occurred_at 2026-08-18T04:51:50Z
+
+milestone_acceptance_receipt RCPT_FINAL_INPUTS:
+  model 1
+  set ACCEPTANCE_INPUT_READY_R1
+  set_commitment sha256:c0e22a4da064d01a296a6172294edcc9dc3e5c25af9a0920b468cb83f8117467
+  criterion FINAL_INPUTS_ACCEPTED
+  criterion_commitment sha256:6991be42dc97ae77b9f39e2c3e85fedb7a9aa339c82002bbe23a44c0c32e6e9e
+  action verify
+  evidence_kind artifact
+  evidence_reference "Accepted receipts RCPT_FILESYSTEM_INTEGRITY, RCPT_LOCKED_GC, and RCPT_PACKAGE_DOCUMENTATION"
+  evidence_revision none
+  verifier codex
+  occurred_at 2026-08-18T04:52:12Z

@@ -24,4 +24,19 @@ jobs:
           cd smoke
           npm init -y >/dev/null
           npm install "../$PACKAGE" >/dev/null
-          node -e "import('@mako10k/refgraph-core').then(m => { if (!m.RefGraph) process.exit(1) })"
+          node --input-type=module -e "
+            import { mkdtemp, rm } from 'node:fs/promises';
+            import { tmpdir } from 'node:os';
+            import { join } from 'node:path';
+            import { LocalRepository, RefGraph } from '@mako10k/refgraph-core';
+            if (!RefGraph || !LocalRepository) process.exit(1);
+            const parent = await mkdtemp(join(tmpdir(), 'refgraph-core-smoke-'));
+            try {
+              const repository = await LocalRepository.create(join(parent, 'repository'));
+              const cid = await repository.putRaw(new Uint8Array([1]));
+              await repository.addRoot(cid);
+              await repository.close();
+            } finally {
+              await rm(parent, { recursive: true, force: true });
+            }
+          "

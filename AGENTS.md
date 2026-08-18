@@ -11,6 +11,10 @@
   local filesystems, CID-visible loose files, atomic roots, and one lifetime process writer lock.
 - Never auto-break a writer lock. Stale-lock recovery is an offline evidence and quarantine boundary.
 - Never follow symlinks or interpret malformed/non-regular filesystem entries as canonical blocks.
+- Keep filesystem mutation behind `LocalRepository`; do not export individual mutable filesystem
+  adapters before a lifecycle boundary provides equivalent writer ownership.
+- Persistent integration and package smoke tests must use isolated temporary repositories and close
+  writers before cleanup. A test must never auto-break or silently repair a retained lock.
 - Before changing a decision represented in SealGraph, run read-only `sealgraph impact` on its exact
   current generation and review downstream REFs before updating or auditing the corresponding
   llmthink document. SealGraph impact is structural evidence, not change authority.
