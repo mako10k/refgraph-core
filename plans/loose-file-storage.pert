@@ -1,5 +1,5 @@
 project LOOSE_FILE_STORAGE:
-  version 6
+  version 7
   title "Loose-file persistence and single-writer safety"
   description "Implement the accepted local persistence direction for refgraph-core: CID-visible loose block files, atomic operational roots, a process-level single writer, and a disposable in-memory reverse index rebuilt from canonical blocks. Resolve platform and stale-lock recovery contracts before implementation. Preserve CID identity, codec neutrality, canonical forward-link truth, fail-closed unknown-codec handling, explicit two-phase GC, and immutable-versus-derived corruption reporting. Multi-writer transactions, SQLite, index persistence, CID confidentiality, network storage, publication, and upper-layer semantics are non-goals."
   as_of 2026-08-18
@@ -29,18 +29,18 @@ resource TEST_SURFACE:
   title "Fault injection and acceptance fixture ownership"
   capacity 1
 
-milestone STORAGE_SELECTED:
-  title "Loose-file and single-writer direction selected"
-  state reached
 
 milestone STORAGE_CONTRACT_ACCEPTED:
   title "Filesystem and recovery contract accepted"
+  state reached
 
 milestone PROCESS_LOCK_READY:
   title "Process-level writer lock ready"
+  state reached
 
 milestone BLOCK_STORE_READY:
   title "Loose-file block store ready"
+  state reached
 
 milestone ROOT_STORE_READY:
   title "Atomic file root store ready"
@@ -66,39 +66,8 @@ milestone ACCEPTANCE_INPUT_READY:
 milestone STORAGE_ACCEPTED:
   title "Loose-file persistence accepted"
 
-task FREEZE_STORAGE_CONTRACT STORAGE_SELECTED -> STORAGE_CONTRACT_ACCEPTED:
-  title "Freeze filesystem, lock, and recovery contracts"
-  description "Write the ADR and update architecture invariants before implementation. Fix the repository layout and canonical CID-to-shard mapping; CID visibility statement; supported platform matrix; file and directory permission expectations; same-filesystem atomicity assumptions; symlink and non-regular entry policy; temporary residue handling; root document version and corruption behavior; writer lifecycle; lock ownership metadata; fail-closed stale-lock detection; explicit recovery evidence and operation; error taxonomy; and shutdown semantics. Resolve audit pending items PD1 and PD2 without adding multi-writer or confidentiality semantics."
-  duration 3p
-  status done
-  priority 100
-  requires:
-    DEVELOPERS 1
-    REVIEWERS 1
-    STORAGE_SURFACE 1
-    GRAPH_SURFACE 1
 
-task IMPLEMENT_PROCESS_LOCK STORAGE_CONTRACT_ACCEPTED -> PROCESS_LOCK_READY:
-  title "Implement the fail-closed process writer lock"
-  description "Implement the accepted repository-scoped exclusive writer lifecycle and ownership metadata. Reject a second writer deterministically, retain actionable stale-lock diagnostics without automatic split-brain recovery, release only the lock instance actually owned, clean up on orderly close, and test same-process and child-process contention plus stale and malformed lock records. Do not treat PID presence alone as proof that destructive recovery is safe."
-  duration 4p
-  status done
-  priority 95
-  requires:
-    DEVELOPERS 1
-    STORAGE_SURFACE 1
-    TEST_SURFACE 1
 
-task IMPLEMENT_LOOSE_BLOCK_STORE STORAGE_CONTRACT_ACCEPTED -> BLOCK_STORE_READY:
-  title "Implement immutable loose-file block storage"
-  description "Add LooseFileBlockStore behind the existing BlockStore contract. Derive validated shard paths only from canonical CID strings; write temporary files inside the repository filesystem; verify bytes and CID before publication; fsync according to the accepted durability contract; make same-CID same-bytes puts idempotent; reject different bytes; copy bytes at API boundaries; iterate deterministically; and classify malformed names, symlinks, non-regular files, temporary residue, missing files, and I/O failures without inventing blocks or rewriting corruption."
-  duration 5p
-  status done
-  priority 90
-  requires:
-    DEVELOPERS 1
-    STORAGE_SURFACE 1
-    TEST_SURFACE 1
 
 task IMPLEMENT_ATOMIC_ROOT_STORE STORAGE_CONTRACT_ACCEPTED -> ROOT_STORE_READY:
   title "Implement atomic operational root persistence"
@@ -183,41 +152,107 @@ task ACCEPT_STORAGE_SLICE ACCEPTANCE_INPUT_READY -> STORAGE_ACCEPTED:
     GRAPH_SURFACE 1
     TEST_SURFACE 1
 
-work_event WEV_FREEZE_STORAGE_START:
-  model 1
-  task FREEZE_STORAGE_CONTRACT
-  kind start
-  occurred_at 2026-08-18T12:45:00+09:00
-  planned_value 3p
+milestone_criterion_set STORAGE_CONTRACT_ACCEPTED_R1:
+  milestone STORAGE_CONTRACT_ACCEPTED
+  revision R1
+  commitment sha256:27153aa8ec0f572c936e7869b77614b2c75b03b5d3b396e2a62e451b9f11438c
+  criterion CONTRACT_DOCUMENTED required artifact "Filesystem, lock, durability, and recovery contracts are documented and reviewed"
 
-work_event WEV_FREEZE_STORAGE_FINISH:
-  model 1
-  task FREEZE_STORAGE_CONTRACT
-  kind finish
-  occurred_at 2026-08-18T12:51:13+09:00
+milestone_criterion_set PROCESS_LOCK_READY_R1:
+  milestone PROCESS_LOCK_READY
+  revision R1
+  commitment sha256:cf9554fa2cf5bb130c977d1b9d09bdb2ba3980c32b974c01d52eab566fd9166c
+  criterion LOCK_BEHAVIOR_VERIFIED required test "Exclusive ownership, contention, malformed state, stale state, and safe release behavior pass tests"
 
-work_event WEV_LOOSE_BLOCK_START:
-  model 1
-  task IMPLEMENT_LOOSE_BLOCK_STORE
-  kind start
-  occurred_at 2026-08-18T12:57:24+09:00
-  planned_value 5p
+milestone_criterion_set BLOCK_STORE_READY_R1:
+  milestone BLOCK_STORE_READY
+  revision R1
+  commitment sha256:ff02559ef6b334ac95010cd71b8394c1761bf2c4dd38528a33156ac6a4c9653b
+  criterion BLOCK_STORE_VERIFIED required test "Immutable loose-block identity, persistence, iteration, and corruption boundaries pass tests"
 
-work_event WEV_LOOSE_BLOCK_FINISH:
-  model 1
-  task IMPLEMENT_LOOSE_BLOCK_STORE
-  kind finish
-  occurred_at 2026-08-18T13:03:21+09:00
+milestone_criterion_set ROOT_STORE_READY_R1:
+  milestone ROOT_STORE_READY
+  revision R1
+  commitment sha256:204ec475f8784373cb0a09cf3d1dc4bfd932ff5553c5f90d9463e287cb6403e7
+  criterion ROOT_STORE_VERIFIED required test "Versioned deterministic roots persist atomically and corruption fails closed"
 
-work_event WEV_PROCESS_LOCK_START:
-  model 1
-  task IMPLEMENT_PROCESS_LOCK
-  kind start
-  occurred_at 2026-08-18T13:05:57+09:00
-  planned_value 4p
+milestone_criterion_set REPOSITORY_INPUT_READY_R1:
+  milestone REPOSITORY_INPUT_READY
+  revision R1
+  commitment sha256:7b1192d570cadd9f2a07a54e351bc098628594bdd5abd1a814f82ef2b7116eeb
+  criterion COMPOSITION_INPUTS_READY required artifact "Writer lock, block store, and root store contracts are all available for composition"
 
-work_event WEV_PROCESS_LOCK_FINISH:
+milestone_criterion_set REPOSITORY_READY_R1:
+  milestone REPOSITORY_READY
+  revision R1
+  commitment sha256:bb99acd5281be0d80e8d54cfc388bc1c6a8ac17a7fbd91643eff6ccf2f017ccc
+  criterion REPOSITORY_LIFECYCLE_VERIFIED required test "Open, canonical rebuild, mutation readiness, and deterministic close behavior pass tests"
+
+milestone_criterion_set INTEGRITY_ACCEPTED_R1:
+  milestone INTEGRITY_ACCEPTED
+  revision R1
+  commitment sha256:6ade1c44b62d180d7af235602edd0a8494b2bed2c65daee14495c2fab58e715d
+  criterion FILESYSTEM_INTEGRITY_VERIFIED required test "Restart, crash, residue, permissions, symlink, and immutable corruption fixtures pass"
+
+milestone_criterion_set GC_ACCEPTED_R1:
+  milestone GC_ACCEPTED
+  revision R1
+  commitment sha256:899d6f19c58adcf0187727b031dd08fb0632c35f0df30497ca353f0d01f89391
+  criterion LOCKED_GC_VERIFIED required test "Reachability and two-phase destructive GC remain safe under the writer lock and failure injection"
+
+milestone_criterion_set DOCUMENTATION_READY_R1:
+  milestone DOCUMENTATION_READY
+  revision R1
+  commitment sha256:69de7e7386bd7e61a89ead9e5168b8ae6e544f65ad925bf0a24cf0574a931203
+  criterion PACKAGE_BOUNDARY_DOCUMENTED required artifact "Public API, persistence behavior, operational limits, examples, and package smoke path are documented"
+
+milestone_criterion_set ACCEPTANCE_INPUT_READY_R1:
+  milestone ACCEPTANCE_INPUT_READY
+  revision R1
+  commitment sha256:c0e22a4da064d01a296a6172294edcc9dc3e5c25af9a0920b468cb83f8117467
+  criterion FINAL_INPUTS_ACCEPTED required artifact "Integrity, GC, and documentation acceptance evidence are complete"
+
+milestone_criterion_set STORAGE_ACCEPTED_R1:
+  milestone STORAGE_ACCEPTED
+  revision R1
+  commitment sha256:3e63d6a574ee920088fa1e43dffe49855279053ddda809556f8d663e550f5730
+  criterion STORAGE_SLICE_VERIFIED required command "All formatting, lint, typecheck, tests, build, package smoke, fsck, and plan checks pass"
+
+milestone_acceptance_receipt RCPT_STORAGE_CONTRACT:
   model 1
-  task IMPLEMENT_PROCESS_LOCK
-  kind finish
-  occurred_at 2026-08-18T13:11:19+09:00
+  set STORAGE_CONTRACT_ACCEPTED_R1
+  set_commitment sha256:27153aa8ec0f572c936e7869b77614b2c75b03b5d3b396e2a62e451b9f11438c
+  criterion CONTRACT_DOCUMENTED
+  criterion_commitment sha256:d2929b4b1573f4c53b97d3dbe8af4d73d00e858f5666b37c47c88e7b1fc72b43
+  action verify
+  evidence_kind artifact
+  evidence_reference "docs/adr/0001-loose-file-single-writer-storage.md and docs/architecture.md"
+  evidence_revision 20787211f33482a7098d142054c006e43a97aefb
+  verifier codex
+  occurred_at 2026-08-18T04:19:08Z
+
+milestone_acceptance_receipt RCPT_PROCESS_LOCK:
+  model 1
+  set PROCESS_LOCK_READY_R1
+  set_commitment sha256:cf9554fa2cf5bb130c977d1b9d09bdb2ba3980c32b974c01d52eab566fd9166c
+  criterion LOCK_BEHAVIOR_VERIFIED
+  criterion_commitment sha256:7a55ad2157d937cc3703cbf6b10ce817bcaa7b5de821a3bfe3652245a09e955d
+  action verify
+  evidence_kind test
+  evidence_reference "npm run check: process-writer-lock 8 tests passed; full suite 28 tests passed"
+  evidence_revision 20787211f33482a7098d142054c006e43a97aefb
+  verifier codex
+  occurred_at 2026-08-18T04:19:08Z
+
+milestone_acceptance_receipt RCPT_BLOCK_STORE:
+  model 1
+  set BLOCK_STORE_READY_R1
+  set_commitment sha256:ff02559ef6b334ac95010cd71b8394c1761bf2c4dd38528a33156ac6a4c9653b
+  criterion BLOCK_STORE_VERIFIED
+  criterion_commitment sha256:85a32e67c265e2dc3e2acf8077de614aca0574ff8604c9882f8daea78eaa776d
+  action verify
+  evidence_kind test
+  evidence_reference "npm run check: loose-file-block-store 9 tests passed; full suite 28 tests passed"
+  evidence_revision 20787211f33482a7098d142054c006e43a97aefb
+  verifier codex
+  occurred_at 2026-08-18T04:19:09Z
