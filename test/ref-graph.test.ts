@@ -27,6 +27,18 @@ describe('RefGraph vertical slice', () => {
     expect(await graph.getValue(root)).toMatchObject({ arbitrary: [{ deeply: leaf }] })
   })
 
+  it('returns a deterministic set of referrer blocks and deduplicates repeated links', async () => {
+    const graph = new RefGraph({ blocks: new MemoryBlockStore() })
+    const target = await graph.putRaw(new Uint8Array([1]))
+    const referrerA = await graph.putValue({ first: target, nested: [target, { again: target }] })
+    const referrerB = await graph.putValue({ arbitrary: [{ target }] })
+
+    expect((await graph.incoming(target)).map(({ cid }) => cid.toString())).toEqual(
+      [referrerA.toString(), referrerB.toString()].sort(),
+    )
+    expect((await graph.refs(referrerA)).map(String)).toEqual([target.toString()])
+  })
+
   it('rebuilds and verifies a deliberately corrupted derived index', async () => {
     const blocks = new MemoryBlockStore()
     const index = new MemoryReverseIndex()
@@ -43,6 +55,64 @@ describe('RefGraph vertical slice', () => {
     await graph.rebuildIndex()
     expect(await graph.verifyIndex()).toEqual([])
     expect((await graph.incoming(leaf))[0]?.cid.equals(root)).toBe(true)
+  })
+
+  it('detects missing, extra, and wrong-referrer derived mappings', async () => {
+    const blocks = new MemoryBlockStore()
+    const index = new MemoryReverseIndex()
+    const graph = new RefGraph({ blocks, index })
+    const target = await graph.putRaw(new Uint8Array([1]))
+    const expectedReferrer = await graph.putValue({ target })
+    const wrongReferrer = await graph.putRaw(new Uint8Array([2]))
+    const wrongTarget = await cidFor(raw.code, new Uint8Array([3]))
+
+    await index.replace(
+      new Map([
+        [target.toString(), new Map([[wrongReferrer.toString(), { cid: wrongReferrer }]])],
+        [
+          wrongTarget.toString(),
+          new Map([[expectedReferrer.toString(), { cid: expectedReferrer }]]),
+        ],
+      ]),
+    )
+
+    const issues = await graph.verifyIndex()
+    expect(issues).toHaveLength(3)
+    expect(issues.every(({ code }) => code === 'index-mismatch')).toBe(true)
+    const report = await graph.fsck()
+    expect(report.blockIssues).toEqual([])
+    expect(report.derivedIssues).toEqual(issues)
+  })
+
+  it('keeps the last complete derived index when a strict rebuild scan fails', async () => {
+    const blocks = new MemoryBlockStore()
+    const graph = new RefGraph({ blocks })
+    const target = await graph.putRaw(new Uint8Array([1]))
+    const referrer = await graph.putValue({ target })
+    const unknownBytes = new Uint8Array([9])
+    const unknown = await cidFor(0x300001, unknownBytes)
+    await blocks.put(unknown, unknownBytes)
+
+    await expect(graph.rebuildIndex()).rejects.toBeInstanceOf(UnsupportedCodecError)
+    expect((await graph.incoming(target)).map(({ cid }) => cid.toString())).toEqual([
+      referrer.toString(),
+    ])
+    await expect(graph.verifyIndex()).rejects.toBeInstanceOf(UnsupportedCodecError)
+    expect((await graph.fsck()).blockIssues.map(({ code }) => code)).toContain('unsupported-codec')
+  })
+
+  it('keeps a canonical block recoverable when derived replacement fails', async () => {
+    const blocks = new MemoryBlockStore()
+    const index = new FailOnceReverseIndex()
+    const graph = new RefGraph({ blocks, index })
+    const bytes = new Uint8Array([7])
+    const expected = await cidFor(raw.code, bytes)
+
+    await expect(graph.putRaw(bytes)).rejects.toThrow('injected derived replacement failure')
+    expect(await blocks.get(expected)).toEqual(bytes)
+    await graph.rebuildIndex()
+    expect(await graph.verifyIndex()).toEqual([])
+    expect(await graph.refs(expected)).toEqual([])
   })
 
   it('computes reachability from operational roots without using the reverse index', async () => {
@@ -139,6 +209,21 @@ describe('explicit garbage collection', () => {
     expect(await graph.hasBlock(leaf)).toBe(true)
   })
 
+  it('removes deleted referrer blocks from reverse lookup', async () => {
+    const graph = new RefGraph({ blocks: new MemoryBlockStore() })
+    const target = await graph.putRaw(new Uint8Array([1]))
+    const garbageReferrer = await graph.putValue({ target })
+    await graph.addRoot(target)
+
+    expect((await graph.incoming(target)).map(({ cid }) => cid.toString())).toEqual([
+      garbageReferrer.toString(),
+    ])
+    const result = await graph.commitGc(await graph.planGc())
+    expect(result.deleted.map(String)).toEqual([garbageReferrer.toString()])
+    expect(await graph.incoming(target)).toEqual([])
+    expect(await graph.verifyIndex()).toEqual([])
+  })
+
   it('rejects a plan made stale by a root change', async () => {
     const graph = new RefGraph({ blocks: new MemoryBlockStore() })
     const candidate = await graph.putRaw(new Uint8Array([1]))
@@ -166,4 +251,41 @@ describe('explicit garbage collection', () => {
 
 async function cidFor(code: number, bytes: Uint8Array): Promise<CID> {
   return CID.create(1, code, await sha256.digest(bytes))
+}
+
+describe('MemoryReverseIndex isolation', () => {
+  it('copies replacement, lookup, and snapshot referrer records', async () => {
+    const index = new MemoryReverseIndex()
+    const target = await cidFor(raw.code, new Uint8Array([1]))
+    const referrer = await cidFor(raw.code, new Uint8Array([2]))
+    const replacement = { cid: referrer }
+    await index.replace(
+      new Map([[target.toString(), new Map([[referrer.toString(), replacement]])]]),
+    )
+
+    const incoming = (await index.incoming(target))[0]
+    const snapshot = (await index.snapshot()).get(target.toString())?.get(referrer.toString())
+    if (incoming === undefined || snapshot === undefined) throw new Error('missing test referrer')
+    replacement.cid = target
+    ;(incoming as { cid: CID }).cid = target
+    ;(snapshot as { cid: CID }).cid = target
+
+    expect((await index.incoming(target)).map(({ cid }) => cid.toString())).toEqual([
+      referrer.toString(),
+    ])
+  })
+})
+
+class FailOnceReverseIndex extends MemoryReverseIndex {
+  private fail = true
+
+  override async replace(
+    entries: ReadonlyMap<string, ReadonlyMap<string, { readonly cid: CID }>>,
+  ): Promise<void> {
+    if (this.fail) {
+      this.fail = false
+      throw new Error('injected derived replacement failure')
+    }
+    await super.replace(entries)
+  }
 }

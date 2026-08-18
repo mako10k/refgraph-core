@@ -37,18 +37,34 @@ export class MemoryReverseIndex implements ReverseIndex {
   private entries = new Map<string, Map<string, Referrer>>()
 
   async incoming(target: CID): Promise<readonly Referrer[]> {
-    return [...(this.entries.get(target.toString())?.values() ?? [])].sort((a, b) =>
-      a.cid.toString().localeCompare(b.cid.toString()),
-    )
+    return [...(this.entries.get(target.toString())?.values() ?? [])]
+      .map(copyReferrer)
+      .sort((a, b) => a.cid.toString().localeCompare(b.cid.toString()))
   }
 
   async replace(entries: ReadonlyMap<string, ReadonlyMap<string, Referrer>>): Promise<void> {
-    this.entries = new Map([...entries].map(([target, referrers]) => [target, new Map(referrers)]))
+    const replacement = new Map<string, Map<string, Referrer>>()
+    for (const [target, referrers] of entries) {
+      replacement.set(
+        target,
+        new Map([...referrers].map(([referrer, value]) => [referrer, copyReferrer(value)])),
+      )
+    }
+    this.entries = replacement
   }
 
   async snapshot(): Promise<ReadonlyMap<string, ReadonlyMap<string, Referrer>>> {
-    return new Map([...this.entries].map(([target, referrers]) => [target, new Map(referrers)]))
+    return new Map(
+      [...this.entries].map(([target, referrers]) => [
+        target,
+        new Map([...referrers].map(([referrer, value]) => [referrer, copyReferrer(value)])),
+      ]),
+    )
   }
+}
+
+function copyReferrer(referrer: Referrer): Referrer {
+  return { cid: referrer.cid }
 }
 
 export class MemoryRootStore implements RootStore {

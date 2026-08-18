@@ -106,4 +106,9 @@ rebuild/verification, roots, reachability, fsck, and two-phase GC. Storage bound
 `LocalRepository` is the public filesystem composition boundary; individual filesystem adapters are
 not package exports.
 
+`incoming(targetCid)` is structural only: it returns a deterministic set of referrer block CIDs,
+deduplicating repeated links from the same block. Forward links remain canonical, while the reverse
+map is disposable and never proves reachability. Semantic decoding/filtering and any materialized
+semantic index belong to upper layers.
+
 Licensed under MIT.

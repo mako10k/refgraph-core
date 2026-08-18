@@ -50,6 +50,57 @@ support their codec or multihash. fsck reports them. Traversal, reachability, ca
 and GC abort rather than treating unknown content as a leaf. Public verified writes currently accept
 SHA-256 CIDs only; support for another multihash requires registering an explicit verifier.
 
+## Structural reverse index
+
+Forward IPLD Links decoded from immutable blocks are canonical graph facts. The reverse index is a
+derived physical access structure with exactly this logical mapping:
+
+```text
+target CID -> set of referrer block CIDs
+```
+
+It does not interpret field names or record why a link exists. If one block contains the same target
+CID at multiple IPLD locations, `incoming(target)` returns that referrer once. Results are sorted by
+canonical CID string for deterministic API behavior. IPLD locations are not retained because no
+current core use case requires them.
+
+`rebuildIndex()` performs a strict scan of every stored canonical block, builds a complete new map
+separately, and calls `ReverseIndex.replace()` only after the scan succeeds. It is deterministic,
+safe to rerun, and independent of roots or application semantics. A failed scan therefore leaves the
+previous derived map available, but that older map must not be mistaken for a completeness claim;
+the scan error remains authoritative. `verifyIndex()` computes the same expected map and compares it
+with a derived snapshot. `fsck()` reports missing and extra edges as repairable `index-mismatch`
+issues when canonical analysis succeeds. Immutable decode, hash, or codec problems remain block
+issues and prevent a claim that the reverse index is complete.
+
+Canonical block storage happens before derived maintenance. If a custom `ReverseIndex.replace()`
+fails, the write operation surfaces that failure even though the immutable block may already be
+present; the block remains valid, retry is idempotent, and `rebuildIndex()` can restore derived
+availability. The shipped memory index builds its replacement before one assignment and does not
+perform I/O. No index failure rewrites or rolls back canonical block bytes.
+
+The current correctness-oriented write path stores one verified block and then rebuilds the entire
+index. With `N` stored blocks and `E` decoded links, one rebuild is `O(N + E)` aside from codec and
+I/O costs; repeated single-block ingestion can therefore approach quadratic total scanning work.
+GC likewise performs canonical scans and rebuilds after deletion. This is accepted for the current
+unspecified initial scale: the persistent repository keeps only a memory index, no workload or
+benchmark currently justifies a broader incremental mutation contract, and whole-map replacement
+keeps failure behavior simple. Incremental maintenance or a persistent structural index requires
+measured need and must preserve canonical block success independently from derived maintenance.
+
+The ownership boundary has three distinct levels:
+
+1. The structural reverse index above belongs to `refgraph-core`.
+2. A semantic reverse query belongs to `refgraph-semantic`: it resolves its external identity to
+   internal CID candidates, calls core `incoming(CID)`, decodes those referrer blocks, and filters
+   them using upper-layer meaning.
+3. An optional materialized semantic index keyed by upper-layer identity and profile belongs to a
+   semantic or application repository.
+
+Neither upper level changes the core mapping or makes it canonical. A live reverse index is not
+encoded as an ordinary IPLD graph object, and reverse edges are never used to prove reachability or
+authorize GC.
+
 ## GC protocol
 
 `planGc()` performs a strict canonical scan and returns live and candidate CIDs plus a fingerprint
